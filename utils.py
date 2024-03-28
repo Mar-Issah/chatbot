@@ -20,8 +20,8 @@ def get_pdf_text(uploaded_file):
         with open(temp_file, "wb") as file:
             file.write(uploaded_file.getvalue())
 
-        loader = PyPDFLoader(temp_file)
-        documents = loader.load_and_split()
+        document = PyPDFLoader(temp_file)
+        documents = document.load_and_split()
         return documents
 
 
@@ -68,7 +68,7 @@ def get_conversational_rag_chain(retriever_chain):
     prompt = ChatPromptTemplate.from_messages([
       ("""system", "Answer the user's questions based on only the below context:\n\n{context}
 
-       If the answer is not contained in the context, say \"I don't know\".
+       Keep your answer ground in the facts of the context. If the answer is not contained in the context, say \"I don't know\".
        """),
       MessagesPlaceholder(variable_name="chat_history"),
       ("user", "{input}"),
@@ -80,7 +80,7 @@ def get_conversational_rag_chain(retriever_chain):
     return create_retrieval_chain(retriever_chain, stuff_documents_chain)
 
 
-def get_website_data(prompt):
+def get_pdf_data(prompt):
     retriever_chain = get_context_retriever_chain(st.session_state.store)
     conversation_rag_chain = get_conversational_rag_chain(retriever_chain)
 

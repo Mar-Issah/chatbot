@@ -49,7 +49,7 @@ def main():
             prompt = st.chat_input("Enter a prompt here")
 
             if prompt:
-                response = get_website_data(prompt)
+                response = get_pdf_data(prompt)
 
                 # Append user prompt and response to chat history
                 st.session_state.chat_history.append(HumanMessage(content=prompt))
