@@ -1,16 +1,16 @@
-from langchain.embeddings.sentence_transformer import SentenceTransformerEmbeddings
-# from langchain.llms.openai import OpenAI
-# from langchain.chains.summarize import load_summarize_chain
-# from langchain.llms import HuggingFaceHub
-# from langchain_pinecone import PineconeVectorStore
+# from langchain.embeddings.sentence_transformer import SentenceTransformerEmbeddings
+from langchain_openai import  ChatOpenAI, OpenAIEmbeddings
+from langchain.chains import create_history_aware_retriever, create_retrieval_chain
+from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_pinecone import PineconeVectorStore
 import os
-import time
+import streamlit as st
 from langchain.document_loaders import PyPDFLoader
-# from langchain_community.document_loaders import PyPDFLoader
+
 
 pinecone_api_key = os.environ.get("PINECONE_API_KEY")
 pinecone_index_name=os.environ.get("PINECONE_INDEX_NAME")
-
 
 
 # Extract Information from PDF file
@@ -22,35 +22,70 @@ def get_pdf_text(uploaded_file):
 
         loader = PyPDFLoader(temp_file)
         documents = loader.load_and_split()
-    return documents
+        return documents
 
 
 #Create embeddings instance
 def create_embeddings_load_data():
-    #embeddings = OpenAIEmbeddings()
-    embeddings = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
+    embeddings = OpenAIEmbeddings()
+    # embeddings = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
     return embeddings
 
-#old
-# def push_to_pinecone(docs, embeddings):
-#     # Pinecone(api_key=pinecone_api_key)
-#     index_name = pinecone_index_name
-#     index = PineconeVectorStore.from_documents(docs, embeddings, index_name=index_name)
-#     return index
+
+# Push data to pinecone
+def push_to_pinecone(docs, embeddings):
+    index_name = pinecone_index_name
+    store = PineconeVectorStore.from_documents(docs, embeddings, index_name=index_name)
+    return store
 
 
-#Function to help us get relavant documents from vector store - based on user input
-def similarity_search(docsearch,query,k,unique_id):
-     # similarity_search_with_score returns score % assign to each seacrh doc
-    time.sleep(20)
-    matched_docs = docsearch.similarity_search_with_score(query, int(k), {"unique_id":unique_id})
-    return matched_docs
+def pull_from_pinecone(embeddings):
+   index_name = pinecone_index_name
+   vectorstore = PineconeVectorStore(index_name=index_name, embedding=embeddings)
+   return vectorstore
 
 
-# Summarise doc
-# def get_summary(current_doc):
-#     llm = OpenAI(temperature=0)
-#     #llm = HuggingFaceHub(repo_id="bigscience/bloom", model_kwargs={"temperature":1e-10})
-#     chain = load_summarize_chain(llm, chain_type="map_reduce")
-#     summary = chain.run([current_doc])
-#     return summary
+# make the model of the chat_history and context in order to retrieve rrelevant document
+def get_context_retriever_chain(vector_store):
+    llm = ChatOpenAI()
+
+    retriever = vector_store.as_retriever()
+
+    prompt = ChatPromptTemplate.from_messages([
+      MessagesPlaceholder(variable_name="chat_history"),
+      ("user", "{input}"),
+      ("user", "Given the above conversation, generate a search query to look up in order to get information relevant to the conversation")
+    ])
+
+    retriever_chain = create_history_aware_retriever(llm, retriever, prompt)
+    return retriever_chain
+
+
+# final lap which instruct the llm to anwers the user query based on the history, relevant docs and prompt
+def get_conversational_rag_chain(retriever_chain):
+    llm = ChatOpenAI()
+
+    prompt = ChatPromptTemplate.from_messages([
+      ("""system", "Answer the user's questions based on only the below context:\n\n{context}
+
+       If the answer is not contained in the context, say \"I don't know\".
+       """),
+      MessagesPlaceholder(variable_name="chat_history"),
+      ("user", "{input}"),
+    ])
+
+	# making sure that the prompt fits into the context window of the llm
+    stuff_documents_chain = create_stuff_documents_chain(llm, prompt)
+
+    return create_retrieval_chain(retriever_chain, stuff_documents_chain)
+
+
+def get_website_data(prompt):
+    retriever_chain = get_context_retriever_chain(st.session_state.store)
+    conversation_rag_chain = get_conversational_rag_chain(retriever_chain)
+
+    response = conversation_rag_chain.invoke({
+        "chat_history": st.session_state.chat_history,
+        "input": prompt
+    })
+    return response['answer']

@@ -1,7 +1,7 @@
 import streamlit as st
 from dotenv import load_dotenv
 from utils import *
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage
 
 # Load environment variables
 load_dotenv()
@@ -16,6 +16,9 @@ def main():
     st.markdown("<h3 style='text-align: center;'>How can I assist you? </h3>", unsafe_allow_html=True)
 
     # Creating Session State Variable
+    if 'store' not in st.session_state:
+        st.session_state['store'] = None
+
     if 'chat_history' not in st.session_state:
         st.session_state['chat_history'] = [
             AIMessage(content="Hello, I am a bot. How can I brighten your day?")
@@ -25,42 +28,44 @@ def main():
     with st.sidebar:
         st.title("📄💬➡️🔍")
         pdf_file = st.file_uploader("Upload files here, only PDF files allowed", type=["pdf"])
+        # st.write("construction-safety-manual.pdf")
 
-        # check if file is present
-    if pdf_file is None or pdf_file == "":
-        st.warning("Please upload a file!")
-    else:
+    # Check if file is present
+    if pdf_file:
         try:
             # Create a list of documents from uploaded PDF files
             docs = get_pdf_text(pdf_file)
-            st.write(docs)
 
             # Create embeddings instance
             embeddings = create_embeddings_load_data()
 
-            # Push data to Pinecone
-            # docsearch = push_to_pinecone(docs, embeddings)
+            if os.path.exists(pdf_file.name):
+                st.session_state['store'] = pull_from_pinecone(embeddings)
+            else:
+                # Push data to Pinecone
+                st.session_state['store'] = push_to_pinecone(docs, embeddings)
 
-            # response_container = st.container()
-
+            # Get response from website data
             prompt = st.chat_input("Enter a prompt here")
 
-            # Uncomment the following lines if you want to append user's message and AI's response
-            # if prompt:
-            #     st.session_state['messages'].append(prompt)
-            #     model_response = get_response(prompt)
-            #     st.session_state['messages'].append(model_response)
+            if prompt:
+                response = get_website_data(prompt)
 
-            # Finally display the user message and AI message
-            # with response_container:
-            #     for i in range(len(st.session_state['messages'])):
-            #         if (i % 2) == 0:
-            #             message(st.session_state['messages'][i], is_user=True, key=str(i) + '_user')
-            #         else:
-            #             message(st.session_state['messages'][i], key=str(i) + '_AI')
+                # Append user prompt and response to chat history
+                st.session_state.chat_history.append(HumanMessage(content=prompt))
+                st.session_state.chat_history.append(AIMessage(content=response))
+
+            # Display conversation history
+            for message in st.session_state.chat_history:
+                if isinstance(message, AIMessage):
+                    with st.chat_message("AI"):
+                        st.write(message.content)
+                elif isinstance(message, HumanMessage):
+                    with st.chat_message("Human"):
+                        st.write(message.content)
 
         except Exception as e:
-                st.error(f"An error occurred: {str(e)}")
+            st.error(f"An error occurred: {str(e)}")
 
 # Invoking main function
 if __name__ == '__main__':
