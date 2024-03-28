@@ -1,70 +1,66 @@
 import streamlit as st
 from dotenv import load_dotenv
 from utils import *
-import uuid
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 # Load environment variables
 load_dotenv()
 
-# Creating session variables
-if "unique_id'" not in st.session_state:
-    st.session_state["unique_id"] = ""
-
 def main():
-    st.set_page_config(page_title="Resume Screening Assistance", page_icon="📝")
-    st.title("Resume Screening Assistance")
+    st.set_page_config(
+        page_title="Bot",
+        page_icon='🤖💬',
+        layout='centered',
+        initial_sidebar_state='expanded'
+    )
+    st.markdown("<h3 style='text-align: center;'>How can I assist you? </h3>", unsafe_allow_html=True)
 
-    # Text area for job description
-    job_description = st.text_area("Enter the 'JOB DESCRIPTION' here", key="1")
+    # Creating Session State Variable
+    if 'chat_history' not in st.session_state:
+        st.session_state['chat_history'] = [
+            AIMessage(content="Hello, I am a bot. How can I brighten your day?")
+        ]
 
-    # Text input for number of resumes to return
-    document_count = st.text_input("Number of 'RESUMES' to return", key="2", placeholder="2")
+    # Upload file
+    with st.sidebar:
+        st.title("📄💬➡️🔍")
+        pdf_file = st.file_uploader("Upload files here, only PDF files allowed", type=["pdf"])
 
-    # Upload resumes
-    pdf = st.file_uploader("Upload resumes here, only PDF files allowed", type=["pdf"], accept_multiple_files=True)
-
-	# Enable the button only if all inputs are filled
-    submit = False
-    if job_description and document_count and pdf:
-        submit = st.button("ANALYZE")
+        # check if file is present
+    if pdf_file is None or pdf_file == "":
+        st.warning("Please upload a file!")
     else:
-        st.warning("Please fill in all the inputs to enable analysis.")
+        try:
+            # Create a list of documents from uploaded PDF files
+            docs = get_pdf_text(pdf_file)
+            st.write(docs)
 
-    if submit:
-        with st.spinner("Wait for it..."):
-            try:
-                # Create a unique ID for this session to filter out docs
-                st.session_state["unique_id"] = str(uuid.uuid4().hex)
+            # Create embeddings instance
+            embeddings = create_embeddings_load_data()
 
-                # Create a list of documents from uploaded PDF files
-                docs = create_docs(pdf, st.session_state["unique_id"])
-                st.write("*Resumes uploaded* :" + str(len(docs)))
+            # Push data to Pinecone
+            # docsearch = push_to_pinecone(docs, embeddings)
 
-                # Create embeddings instance
-                embeddings = create_embeddings_load_data()
+            # response_container = st.container()
 
-                # Push data to Pinecone
-                docsearch = push_to_pinecone(docs, embeddings)
-                relevant_docs = similarity_search(docsearch, job_description,document_count, st.session_state["unique_id"])
+            prompt = st.chat_input("Enter a prompt here")
 
-                # st.write(relevant_docs)
-                st.write(":heavy_minus_sign:" * 30)
+            # Uncomment the following lines if you want to append user's message and AI's response
+            # if prompt:
+            #     st.session_state['messages'].append(prompt)
+            #     model_response = get_response(prompt)
+            #     st.session_state['messages'].append(model_response)
 
-                # Display relevant documents
-                for index, doc_info in enumerate(relevant_docs, start=1):
-                    st.subheader(f"👉 Resume {index}")
-                    st.write("**File** : " + doc_info[0].metadata['name'])
+            # Finally display the user message and AI message
+            # with response_container:
+            #     for i in range(len(st.session_state['messages'])):
+            #         if (i % 2) == 0:
+            #             message(st.session_state['messages'][i], is_user=True, key=str(i) + '_user')
+            #         else:
+            #             message(st.session_state['messages'][i], key=str(i) + '_AI')
 
-					#Expander to show more details
-                    with st.expander('Click to open 👀'):
-                        st.info("**Match Score** : " + str(doc_info[1]))
-                        # Get summary using LLM
-                        summary = get_summary(doc_info[0])
-                        st.write("**Summary** : " + summary)
-                st.success("I hope you find the right candidate.❤️")
-            except Exception as e:
+        except Exception as e:
                 st.error(f"An error occurred: {str(e)}")
-
 
 # Invoking main function
 if __name__ == '__main__':
