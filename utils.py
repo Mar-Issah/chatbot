@@ -1,4 +1,3 @@
-# from langchain.embeddings.sentence_transformer import SentenceTransformerEmbeddings
 from langchain_openai import  ChatOpenAI, OpenAIEmbeddings
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
@@ -13,8 +12,16 @@ pinecone_api_key = os.environ.get("PINECONE_API_KEY")
 pinecone_index_name=os.environ.get("PINECONE_INDEX_NAME")
 
 
-# Extract Information from PDF file
 def get_pdf_text(uploaded_file):
+    """
+    Extract text from a PDF file.
+
+    Args:
+        uploaded_file (BytesIO): PDF file uploaded by the user.
+
+    Returns:
+        list: List of extracted text documents.
+    """
     if uploaded_file:
         temp_file = uploaded_file.name
         with open(temp_file, "wb") as file:
@@ -23,30 +30,50 @@ def get_pdf_text(uploaded_file):
         document = PyPDFLoader(temp_file)
         documents = document.load_and_split()
         return documents
+    else:
+        raise ValueError("No PDF file provided.")
 
 
-#Create embeddings instance
 def create_embeddings_load_data():
-    embeddings = OpenAIEmbeddings()
-    # embeddings = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
-    return embeddings
+    """Create an instance of OpenAI embeddings."""
+    return OpenAIEmbeddings()
 
 
-# Push data to pinecone
+
 def push_to_pinecone(docs, embeddings):
-    index_name = pinecone_index_name
-    store = PineconeVectorStore.from_documents(docs, embeddings, index_name=index_name)
-    return store
+    """
+    Push documents to Pinecone vector store.
+
+    Args:
+        docs (list): List of documents.
+        embeddings: Embeddings instance.
+        index_name (str): Name of the Pinecone index.
+
+    Returns:
+        PineconeVectorStore: Vector store.
+    """
+    vectorstore = PineconeVectorStore.from_documents(docs, embeddings, index_name=pinecone_index_name)
+    return vectorstore
 
 
+# Pull from pinecone
 def pull_from_pinecone(embeddings):
-   index_name = pinecone_index_name
-   vectorstore = PineconeVectorStore(index_name=index_name, embedding=embeddings)
-   return vectorstore
+    """
+    Pull documents from Pinecone vector store.
+
+    Args:
+        embeddings: Embeddings instance.
+        index_name (str): Name of the Pinecone index.
+
+    Returns:
+        PineconeVectorStore: Vector store.
+    """
+    vectorstore = PineconeVectorStore(index_name=pinecone_index_name, embedding=embeddings)
+    return vectorstore
 
 
-# make the model of the chat_history and context in order to retrieve rrelevant document
 def get_context_retriever_chain(vector_store):
+    """Create a retriever chain based on context."""
     llm = ChatOpenAI()
 
     retriever = vector_store.as_retriever()
@@ -61,8 +88,9 @@ def get_context_retriever_chain(vector_store):
     return retriever_chain
 
 
-# final lap which instruct the llm to anwers the user query based on the history, relevant docs and prompt
+# Final lap which instructs the llm to anwers query based on the history, relevant docs
 def get_conversational_rag_chain(retriever_chain):
+    """Create a RAG chain for conversational retrieval."""
     llm = ChatOpenAI()
 
     prompt = ChatPromptTemplate.from_messages([
@@ -81,6 +109,17 @@ def get_conversational_rag_chain(retriever_chain):
 
 
 def get_pdf_data(prompt):
+    """
+    Get data from PDF based on conversation context.
+
+    Args:
+        prompt (str): User prompt.
+        retriever_chain: Retriever chain.
+        chat_history (str): Chat history.
+
+    Returns:
+        str: Response to the user's query.
+    """
     retriever_chain = get_context_retriever_chain(st.session_state.store)
     conversation_rag_chain = get_conversational_rag_chain(retriever_chain)
 

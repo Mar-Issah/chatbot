@@ -28,7 +28,6 @@ def main():
     with st.sidebar:
         st.title("📄💬➡️🔍")
         pdf_file = st.file_uploader("Upload files here, only PDF files allowed", type=["pdf"])
-        # st.write("construction-safety-manual.pdf")
 
     # Check if file is present
     if pdf_file:
@@ -45,7 +44,7 @@ def main():
                 # Push data to Pinecone
                 st.session_state['store'] = push_to_pinecone(docs, embeddings)
 
-            # Get response from website data
+            # Enter prompt
             prompt = st.chat_input("Enter a prompt here")
 
             if prompt:
@@ -67,6 +66,5 @@ def main():
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
 
-# Invoking main function
 if __name__ == '__main__':
     main()
