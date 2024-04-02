@@ -6,13 +6,17 @@ from langchain_pinecone import PineconeVectorStore
 import os
 import streamlit as st
 from langchain.document_loaders import PyPDFLoader
+from langchain_core.documents import Document
+from typing import List
+from langchain_core.embeddings import Embeddings
+from langchain_core.vectorstores import VectorStore
 
 
 pinecone_api_key = os.environ.get("PINECONE_API_KEY")
 pinecone_index_name=os.environ.get("PINECONE_INDEX_NAME")
 
 
-def get_pdf_text(uploaded_file):
+def get_pdf_text(uploaded_file) -> List[Document]:
     """
     Extract text from a PDF file.
 
@@ -34,45 +38,47 @@ def get_pdf_text(uploaded_file):
         raise ValueError("No PDF file provided.")
 
 
-def create_embeddings_load_data():
+def create_embeddings():
     """Create an instance of OpenAI embeddings."""
     return OpenAIEmbeddings()
 
 
-
-def push_to_pinecone(docs, embeddings):
+def push_to_pinecone(docs: List[Document], embeddings: Embeddings) -> VectorStore:
     """
     Push documents to Pinecone vector store.
 
     Args:
         docs (list): List of documents.
         embeddings: Embeddings instance.
-        index_name (str): Name of the Pinecone index.
 
     Returns:
         PineconeVectorStore: Vector store.
     """
-    vectorstore = PineconeVectorStore.from_documents(docs, embeddings, index_name=pinecone_index_name)
-    return vectorstore
+    try:
+        vectorstore = PineconeVectorStore.from_documents(docs, embeddings, index_name=pinecone_index_name)
+        return vectorstore
+    except Exception as e:
+        print(e)
 
 
-# Pull from pinecone
-def pull_from_pinecone(embeddings):
+def pull_from_pinecone(embeddings: Embeddings) -> VectorStore:
     """
     Pull documents from Pinecone vector store.
 
     Args:
         embeddings: Embeddings instance.
-        index_name (str): Name of the Pinecone index.
 
     Returns:
         PineconeVectorStore: Vector store.
     """
-    vectorstore = PineconeVectorStore(index_name=pinecone_index_name, embedding=embeddings)
-    return vectorstore
+    try:
+        vectorstore = PineconeVectorStore(index_name=pinecone_index_name, embedding=embeddings)
+        return vectorstore
+    except Exception as e:
+        print(e)
 
 
-def get_context_retriever_chain(vector_store):
+def get_context_retriever_chain(vector_store: VectorStore):
     """Create a retriever chain based on context."""
     llm = ChatOpenAI()
 
@@ -108,14 +114,12 @@ def get_conversational_rag_chain(retriever_chain):
     return create_retrieval_chain(retriever_chain, stuff_documents_chain)
 
 
-def get_pdf_data(prompt):
+def get_pdf_data(prompt: str) -> str:
     """
     Get data from PDF based on conversation context.
 
     Args:
         prompt (str): User prompt.
-        retriever_chain: Retriever chain.
-        chat_history (str): Chat history.
 
     Returns:
         str: Response to the user's query.

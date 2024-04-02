@@ -2,11 +2,14 @@ import streamlit as st
 from dotenv import load_dotenv
 from utils import *
 from langchain_core.messages import AIMessage, HumanMessage
+from typing import Union
 
 # Load environment variables
 load_dotenv()
 
-def main():
+def main() -> None:
+    """Main function to run the Streamlit application."""
+
     st.set_page_config(
         page_title="Bot",
         page_icon='🤖💬',
@@ -32,23 +35,24 @@ def main():
     # Check if file is present
     if pdf_file:
         try:
-            # Create a list of documents from uploaded PDF files
-            docs = get_pdf_text(pdf_file)
+            with st.spinner("Uploading file..."):
+                # Create embeddings instance
+                embeddings = create_embeddings()
 
-            # Create embeddings instance
-            embeddings = create_embeddings_load_data()
+                if os.path.exists(pdf_file.name):
+                    st.session_state['store'] = pull_from_pinecone(embeddings)
+                else:
+                     # Create a list of documents from uploaded PDF files
+                    docs = get_pdf_text(pdf_file)
 
-            if os.path.exists(pdf_file.name):
-                st.session_state['store'] = pull_from_pinecone(embeddings)
-            else:
-                # Push data to Pinecone
-                st.session_state['store'] = push_to_pinecone(docs, embeddings)
+                    # Push data to Pinecone
+                    st.session_state['store'] = push_to_pinecone(docs, embeddings)
 
             # Enter prompt
-            prompt = st.chat_input("Enter a prompt here")
+            prompt: Union[str, None] = st.chat_input("Enter a prompt here")
 
             if prompt:
-                response = get_pdf_data(prompt)
+                response: str = get_pdf_data(prompt)
 
                 # Append user prompt and response to chat history
                 st.session_state.chat_history.append(HumanMessage(content=prompt))
@@ -65,6 +69,9 @@ def main():
 
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
+    else:
+        st.info("Upload a PDF file to get started.")
+
 
 if __name__ == '__main__':
     main()
