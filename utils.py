@@ -102,7 +102,7 @@ def get_conversational_rag_chain(retriever_chain):
     prompt = ChatPromptTemplate.from_messages([
       ("""system", "Answer the user's questions based on only the below context:\n\n{context}
 
-       Keep your answer ground in the facts of the context. If the answer is not contained in the context, say \"I don't know\".
+       Keep your answer ground in the facts of the context. If the answer is not contained in the context, say \"Unfortunately, I'm not equipped with the information to answer that question at the moment. Is there anything else I can assist you with?\".
        """),
       MessagesPlaceholder(variable_name="chat_history"),
       ("user", "{input}"),
